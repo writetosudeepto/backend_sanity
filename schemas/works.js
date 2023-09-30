@@ -25,6 +25,11 @@ export default {
         type: 'string',
       },
       {
+        name: 'codeSource',
+        title: 'Code Source Name',
+        type: 'string',
+      },
+      {
         name: 'imgUrl',
         title: 'ImageUrl',
         type: 'image',
