@@ -1,0 +1,16 @@
+{
+  "name": "sanity-webhook-server",
+  "version": "1.0.0",
+  "description": "Webhook server for Sanity contact form notifications",
+  "main": "webhook-server.js",
+  "scripts": {
+    "start": "node webhook-server.js",
+    "dev": "nodemon webhook-server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
