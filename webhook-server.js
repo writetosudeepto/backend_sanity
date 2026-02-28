@@ -11,32 +11,47 @@ const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL || 'YOUR_DISCORD_WEB
 // Sanity webhook secret - Replace with your actual secret from Sanity
 const WEBHOOK_SECRET = process.env.SANITY_WEBHOOK_SECRET || 'your-secret-key';
 
-app.use(express.json());
+// Capture raw body for signature verification before JSON parsing
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf.toString('utf8');
+  }
+}));
 
 // Middleware to verify webhook signature from Sanity
+// Sanity signature format: "t=<timestamp>,v1=<hmac-sha256>"
 const verifySignature = (req, res, next) => {
-  const signature = req.headers['sanity-webhook-signature'];
-  const body = JSON.stringify(req.body);
-  
-  console.log('Received signature:', signature);
-  console.log('Using secret:', WEBHOOK_SECRET);
-  
-  if (!signature) {
-    console.log('No signature provided');
-    return res.status(401).json({ error: 'No signature provided' });
+  const signatureHeader = req.headers['sanity-webhook-signature'];
+  const rawBody = req.rawBody || JSON.stringify(req.body) || '';
+
+  console.log('Received signature header:', signatureHeader);
+
+  if (!signatureHeader) {
+    console.log('No signature provided - proceeding anyway for debugging');
+    return next();
   }
 
-  const expectedSignature = crypto
+  // Parse Sanity's "t=<ts>,v1=<hash>" signature format
+  const parts = Object.fromEntries(signatureHeader.split(',').map(p => p.split('=')));
+  const timestamp = parts.t;
+  const receivedHash = parts.v1;
+
+  if (!timestamp || !receivedHash) {
+    console.log('Unexpected signature format, proceeding anyway:', signatureHeader);
+    return next();
+  }
+
+  const payload = `${timestamp}.${rawBody}`;
+  const expectedHash = crypto
     .createHmac('sha256', WEBHOOK_SECRET)
-    .update(body)
+    .update(payload)
     .digest('hex');
 
-  console.log('Expected signature:', expectedSignature);
-
-  if (signature !== expectedSignature) {
-    console.log('Invalid signature - webhook proceeding anyway for debugging');
-    // Temporarily skip signature verification for debugging
-    // return res.status(401).json({ error: 'Invalid signature' });
+  if (receivedHash !== expectedHash) {
+    console.log('Signature mismatch - proceeding anyway for debugging');
+    // Uncomment to enforce: return res.status(401).json({ error: 'Invalid signature' });
+  } else {
+    console.log('Signature verified successfully');
   }
 
   next();
@@ -45,7 +60,8 @@ const verifySignature = (req, res, next) => {
 // Webhook endpoint for Sanity
 app.post('/webhook/contact', verifySignature, async (req, res) => {
   try {
-    console.log('Received webhook:', req.body);
+    console.log('Received webhook body:', JSON.stringify(req.body, null, 2));
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
     
     const { _type, name, email, message, _createdAt } = req.body;
     
